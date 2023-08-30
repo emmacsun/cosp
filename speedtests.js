@@ -1,6 +1,7 @@
 const CHUNKSIZE = 10000000-1        // 10MB
 const FILESIZE = 100000000          // 100 MB
 const NUM_TO_RUN = 5
+const DELAY = 500;
 
 // aws
 const BUCKETBASE = "mycospbucket";
@@ -19,11 +20,22 @@ const COS_LOC_COORDS = [[37.773972, -122.431297],[23.128994, 113.253250]]
 // general
 var isp;
 var city;
-var state;
 var country;
+var continent;
 var longitude;
 var latitude;
 var myCSV = [["Ref Num","Provider","Endpoint","Location","Distance (1000s km)","Latency (ms)","Upload Speed (MB/s)","Download Speed (MB/s)"]];
+
+function idk() {
+  fetch('locations.json')
+    .then(response => response.json())
+    .then(data => {
+        // You can use the parsed JSON data here
+        console.log(JSON.stringify(data, null, 2));
+        console.log(JSON.stringify(data[REGIONS[0]].city, null, 2))
+    })
+    .catch(error => console.error('Error fetching JSON:', error));
+}
 
 
 
@@ -258,15 +270,19 @@ function dateTimeToLabel(dateTime) {
 // records user data from maxmind
 function setCity() {
   var updateCityText = function(geoipResponse) {
-    var cityName = geoipResponse.city.names.en || 'your city';
-    city = cityName;
-    console.log("ISP:", isp);
-    console.log("City:", city + ",", country);
-    document.getElementById("userData").innerHTML = "ISP: " + isp;
-    document.getElementById("userData2").innerHTML = "City: " + city + ", " + country;
+    city = geoipResponse.city.names.en || 'your city';
+    console.log("City:", city);
   };
+  var updateCountryText = function(geoipResponse) {
+    country = geoipResponse.country.names.en || 'your city';
+    console.log("Country:", country)
+  }
+  var updateInsights = function(geoipResponse) {
+    console.log(geoipResponse.insights)
+  }
   var onSuccess = function(geoipResponse) {
     updateCityText(geoipResponse);
+    updateCountryText(geoipResponse);
   };
   var onError = function(error) {
     console.log("error")
@@ -280,6 +296,45 @@ function setCity() {
     }
   };
 }
+
+var fillInPage = (function() {
+  var updateCityText = function(geoipResponse) {
+
+    /*
+     * It's possible that we won't have any names for this city.
+     * For language codes with a special character such as pt-BR,
+     * replace names.en with names['pt-BR'].
+    */
+    city = geoipResponse.city.names.en || 'your city';
+    country = geoipResponse.country.iso_code;
+    continent = geoipResponse.continent.code;
+    latitude = geoipResponse.location.latitude;
+    longitude = geoipResponse.location.longitude;
+    isp = geoipResponse.traits.organization;
+
+
+    console.log(city, country, continent, latitude, longitude, isp)
+  };
+
+  var onSuccess = function(geoipResponse) {
+    updateCityText(geoipResponse);
+  };
+
+  // If we get an error, we will display an error message
+  var onError = function(error) {
+    document.getElementById('city').innerHTML = 'an error!  Please try again..'
+  };
+
+  return function() {
+    if (typeof geoip2 !== 'undefined') {
+      geoip2.city(onSuccess, onError);
+    } else {
+      document.getElementById('city').innerHTML = 'a browser that blocks GeoIP2 requests'
+    }
+  };
+}());
+
+fillInPage()
 
 // records user data from ipapi
 function getIP(json) {
@@ -470,7 +525,7 @@ function addMultRows() {
     row.push(i,"tencent cos",REGIONS_COS[i],COS_LOC[i])//,getDistance(COS_LOC_COORDS[i]));
     myCSV.push(row)
   }
-  setTimeout(function() {addDists()}, 500)
+  setTimeout(function() {addDists()}, DELAY)
 }
 
 function addDists() {
